@@ -1,6 +1,6 @@
 [package]
 name = "bencode-rs"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Tim Harding <tim@timharding.co>"]
 repository = "https://www.github.com/tim-harding/bencode-rs"
