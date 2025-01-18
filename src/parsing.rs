@@ -17,11 +17,11 @@ pub enum Value<'a> {
     Dictionary,
 }
 
-pub fn next_list_item(i: &[u8]) -> Res<Option<Value>> {
-    val_or_end(i)
+pub fn next_nested(i: &[u8]) -> Res<Option<Value>> {
+    alt((value(None, end), map(val, Some)))(i)
 }
 
-pub fn next_value(i: &[u8]) -> Res<Option<Value>> {
+pub fn next_outer(i: &[u8]) -> Res<Option<Value>> {
     alt((value(None, eof), map(val, Some)))(i)
 }
 
@@ -32,10 +32,6 @@ fn val(i: &[u8]) -> Res<Value> {
         map(byte_string, Value::ByteString),
         map(integer, Value::Integer),
     ))(i)
-}
-
-fn val_or_end(i: &[u8]) -> Res<Option<Value>> {
-    alt((value(None, end), map(val, Some)))(i)
 }
 
 fn end(i: &[u8]) -> Res<()> {
@@ -125,19 +121,19 @@ mod tests {
     #[test]
     fn valid_list() {
         let i = b"l3:fooi42e3:bare";
-        let Ok((i, Some(Value::List))) = val_or_end(i) else {
+        let Ok((i, Some(Value::List))) = next_outer(i) else {
             panic!("Expected a list");
         };
-        let Ok((i, Some(Value::ByteString(b"foo")))) = next_list_item(i) else {
+        let Ok((i, Some(Value::ByteString(b"foo")))) = next_nested(i) else {
             panic!("Expected foo");
         };
-        let Ok((i, Some(Value::Integer(42)))) = next_list_item(i) else {
+        let Ok((i, Some(Value::Integer(42)))) = next_nested(i) else {
             panic!("Expected 42");
         };
-        let Ok((i, Some(Value::ByteString(b"bar")))) = next_list_item(i) else {
+        let Ok((i, Some(Value::ByteString(b"bar")))) = next_nested(i) else {
             panic!("Expected bar");
         };
-        let Ok((b"", None)) = next_list_item(i) else {
+        let Ok((b"", None)) = next_nested(i) else {
             panic!("Expected end of list");
         };
     }

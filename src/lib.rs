@@ -1,6 +1,6 @@
 mod parsing;
 
-use parsing::{next_list_item, next_value, Res, Value as ParseValue};
+use parsing::{next_nested, next_outer, Res, Value as ParseValue};
 use std::{error::Error, fmt::Display};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -12,22 +12,21 @@ pub enum Value {
 }
 
 pub fn parse_all(bytes: &[u8]) -> Result<Vec<Value>, ParseError> {
-    let (_, out) = parse_list(bytes, next_value)?;
+    let (_, out) = parse_many(bytes, next_outer)?;
     Ok(out)
 }
 
-fn parse_list(
+fn parse_many(
     mut bytes: &[u8],
     f: fn(&[u8]) -> Res<Option<ParseValue>>,
 ) -> Result<(&[u8], Vec<Value>), ParseError> {
     let mut out = vec![];
     loop {
-        match parse_one(bytes, f)? {
-            (_, None) => break,
-            (i, Some(value)) => {
-                bytes = i;
-                out.push(value);
-            }
+        let (i, maybe_value) = parse_one(bytes, f)?;
+        bytes = i;
+        match maybe_value {
+            Some(value) => out.push(value),
+            None => break,
         }
     }
     Ok((bytes, out))
@@ -37,9 +36,9 @@ fn parse_list(
 fn parse_dictionary(mut bytes: &[u8]) -> Result<(&[u8], Vec<(Value, Value)>), ParseError> {
     let mut out = vec![];
     loop {
-        let (i, k) = parse_one(bytes, next_list_item)?;
+        let (i, k) = parse_one(bytes, next_nested)?;
         let Some(k) = k else { break };
-        let (i, v) = parse_one(i, next_list_item)?;
+        let (i, v) = parse_one(i, next_nested)?;
         bytes = i;
         let Some(v) = v else { return Err(ParseError) };
         out.push((k, v));
@@ -56,7 +55,7 @@ fn parse_one(
         Ok((i, Some(ParseValue::Integer(int)))) => (i, Some(Value::Integer(int))),
         Ok((i, Some(ParseValue::ByteString(s)))) => (i, Some(Value::ByteString(s.to_vec()))),
         Ok((i, Some(ParseValue::List))) => {
-            let (i, list) = parse_list(i, next_list_item)?;
+            let (i, list) = parse_many(i, next_nested)?;
             (i, Some(Value::List(list)))
         }
         Ok((i, Some(ParseValue::Dictionary))) => {
@@ -91,5 +90,40 @@ mod tests {
             parse_all(b"i115ei-12e"),
             Ok(vec![Value::Integer(115), Value::Integer(-12)])
         );
+    }
+
+    #[test]
+    fn valid_list() {
+        assert_eq!(
+            parse_all(b"li115ei-12ee"),
+            Ok(vec![Value::List(vec![
+                Value::Integer(115),
+                Value::Integer(-12)
+            ])])
+        )
+    }
+
+    #[test]
+    fn complex_value() {
+        // assert_eq!(
+        //     parse_all(b"i1eli2el3:foo3:bared3:bazi3el7:listkeye5:valueee"),
+        //     Ok(vec![
+        //         Value::Integer(1),
+        //         Value::List(vec![
+        //             Value::Integer(2),
+        //             Value::List(vec![
+        //                 Value::ByteString(b"foo".to_vec()),
+        //                 Value::ByteString(b"bar".to_vec()),
+        //             ]),
+        //             Value::Dictionary(vec![
+        //                 (Value::ByteString(b"baz".to_vec()), Value::Integer(3)),
+        //                 (
+        //                     Value::List(vec![Value::ByteString(b"listkey".to_vec())]),
+        //                     Value::ByteString(b"value".to_vec())
+        //                 )
+        //             ])
+        //         ])
+        //     ])
+        // )
     }
 }
