@@ -1,34 +1,45 @@
 use nom::{
     branch::alt,
-    character::streaming::{char, digit0},
+    bytes::streaming::take,
+    character::streaming::{char, digit0, digit1},
     combinator::{map, opt, value, verify},
-    sequence::{delimited, tuple},
+    sequence::{delimited, pair, tuple},
     IResult, Needed,
 };
 
-fn int(i: &[u8]) -> IResult<&[u8], i64> {
-    delimited(char('i'), alt((zero, nonzero)), char('e'))(i)
+type Res<'a, O> = IResult<&'a [u8], O>;
+
+fn byte_string(i: &[u8]) -> Res<&[u8]> {
+    let (rest, length) = length(i)?;
+    map(pair(char(':'), take(length)), |(_, s)| s)(rest)
 }
 
-fn nonzero(i: &[u8]) -> IResult<&[u8], i64> {
-    map(nonzero_raw, |(minus, head, tail)| {
-        let mut out = (head - b'0') as i64;
-        for c in tail {
-            out = out * 10 + (c - b'0') as i64;
-        }
-        out * if minus { -1 } else { 1 }
+fn length(i: &[u8]) -> Res<u64> {
+    map(digit1, |digits: &[u8]| match digits {
+        [head, tail @ ..] => ascii_to_uint(*head, tail),
+        [] => unreachable!(),
     })(i)
 }
 
-fn nonzero_raw(i: &[u8]) -> IResult<&[u8], (bool, u8, &[u8])> {
+fn int(i: &[u8]) -> Res<i64> {
+    delimited(char('i'), alt((zero, nonzero)), char('e'))(i)
+}
+
+fn nonzero(i: &[u8]) -> Res<i64> {
+    map(nonzero_raw, |(minus, head, tail)| {
+        ascii_to_uint(head, tail) as i64 * if minus { -1 } else { 1 }
+    })(i)
+}
+
+fn nonzero_raw(i: &[u8]) -> Res<(bool, u8, &[u8])> {
     tuple((minus, verify(byte, is_nonzero), digit0))(i)
 }
 
-fn minus(i: &[u8]) -> IResult<&[u8], bool> {
+fn minus(i: &[u8]) -> Res<bool> {
     map(opt(char('-')), |minus| minus.is_some())(i)
 }
 
-fn zero(i: &[u8]) -> IResult<&[u8], i64> {
+fn zero(i: &[u8]) -> Res<i64> {
     value(0, char('0'))(i)
 }
 
@@ -36,11 +47,19 @@ fn is_nonzero(&b: &u8) -> bool {
     b >= b'1' && b <= b'9'
 }
 
-fn byte(i: &[u8]) -> IResult<&[u8], u8> {
+fn byte(i: &[u8]) -> Res<u8> {
     match i {
         [head, tail @ ..] => Ok((tail, *head)),
         [] => Err(nom::Err::Incomplete(Needed::new(1))),
     }
+}
+
+fn ascii_to_uint(head: u8, tail: &[u8]) -> u64 {
+    let mut out = (head - b'0') as u64;
+    for c in tail {
+        out = out * 10 + (c - b'0') as u64;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -52,5 +71,10 @@ mod tests {
         assert_eq!(int(b"i0e"), Ok((&[][..], 0)));
         assert_eq!(int(b"i115e"), Ok((&[][..], 115)));
         assert_eq!(int(b"i-12e"), Ok((&[][..], -12)));
+    }
+
+    #[test]
+    fn valid_byte_string() {
+        assert_eq!(byte_string(b"6:foobar"), Ok((&[][..], &b"foobar"[..])));
     }
 }
