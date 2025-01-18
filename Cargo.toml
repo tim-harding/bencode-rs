@@ -2,6 +2,10 @@
 name = "bencode-rs"
 version = "0.1.0"
 edition = "2021"
+authors = ["Tim Harding <tim@timharding.co>"]
+repository = "https://www.github.com/tim-harding/bencode-rs"
+description = "bencode format parsing"
+license-file = "LICENSE"
 
 [dependencies]
 nom = "7.1.3"
