@@ -1,9 +1,9 @@
 use nom::{
     branch::alt,
     bytes::streaming::take,
-    character::streaming::{char, digit0, digit1},
+    character::streaming::{char, digit0},
     combinator::{map, opt, value, verify},
-    sequence::{delimited, pair, tuple},
+    sequence::{delimited, pair},
     IResult, Needed,
 };
 
@@ -69,37 +69,36 @@ fn single_char(i: &[u8], c: char) -> Res<()> {
 }
 
 fn byte_string(i: &[u8]) -> Res<&[u8]> {
-    let (rest, length) = length(i)?;
+    let (rest, length) = uint(i)?;
     map(pair(char(':'), take(length)), |(_, s)| s)(rest)
 }
 
-fn length(i: &[u8]) -> Res<u64> {
-    map(digit1, |digits: &[u8]| match digits {
-        [head, tail @ ..] => ascii_to_uint(*head, tail),
-        [] => unreachable!(),
-    })(i)
-}
-
 fn integer(i: &[u8]) -> Res<i64> {
-    delimited(char('i'), alt((zero, nonzero)), char('e'))(i)
+    delimited(char('i'), int_inner, char('e'))(i)
 }
 
-fn nonzero(i: &[u8]) -> Res<i64> {
-    map(nonzero_raw, |(minus, head, tail)| {
-        ascii_to_uint(head, tail) as i64 * if minus { -1 } else { 1 }
+fn int_inner(i: &[u8]) -> Res<i64> {
+    map(pair(minus, uint), |(minus, uint)| {
+        uint as i64 * if minus { -1 } else { 1 }
     })(i)
-}
-
-fn nonzero_raw(i: &[u8]) -> Res<(bool, u8, &[u8])> {
-    tuple((minus, verify(byte, is_nonzero), digit0))(i)
 }
 
 fn minus(i: &[u8]) -> Res<bool> {
     map(opt(char('-')), |minus| minus.is_some())(i)
 }
 
-fn zero(i: &[u8]) -> Res<i64> {
+fn uint(i: &[u8]) -> Res<u64> {
+    alt((uint_zero, uint_nonzero))(i)
+}
+
+fn uint_zero(i: &[u8]) -> Res<u64> {
     value(0, char('0'))(i)
+}
+
+fn uint_nonzero(i: &[u8]) -> Res<u64> {
+    map(pair(verify(byte, is_nonzero), digit0), |(head, tail)| {
+        ascii_to_uint(head, tail)
+    })(i)
 }
 
 fn is_nonzero(b: &u8) -> bool {
