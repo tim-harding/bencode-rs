@@ -10,45 +10,45 @@ use nom::{
 type Res<'a, O> = IResult<&'a [u8], O>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ValuePull<'a> {
+pub enum Value<'a> {
     Integer(i64),
     ByteString(&'a [u8]),
-    List(ListIter),
-    Dictionary(DictionaryIter),
+    List(List),
+    Dictionary(Dictionary),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ListIter;
+pub struct List;
 
-impl ListIter {
-    pub fn next_value(self, i: &[u8]) -> Res<Option<ValuePull>> {
+impl List {
+    pub fn next_value(self, i: &[u8]) -> Res<Option<Value>> {
         maybe_val(i)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DictionaryIter;
+pub struct Dictionary;
 
-impl DictionaryIter {
-    pub fn next_pair(self, i: &[u8]) -> Res<Option<(ValuePull, ValuePull)>> {
+impl Dictionary {
+    pub fn next_pair(self, i: &[u8]) -> Res<Option<(Value, Value)>> {
         alt((value(None, end), map(key_value_pair, Some)))(i)
     }
 }
 
-fn key_value_pair(i: &[u8]) -> Res<(ValuePull, ValuePull)> {
+fn key_value_pair(i: &[u8]) -> Res<(Value, Value)> {
     pair(val, val)(i)
 }
 
-fn val(i: &[u8]) -> Res<ValuePull> {
+fn val(i: &[u8]) -> Res<Value> {
     alt((
-        map(list_start, |()| ValuePull::List(ListIter)),
-        map(dictionary_start, |()| ValuePull::Dictionary(DictionaryIter)),
-        map(byte_string, ValuePull::ByteString),
-        map(int, ValuePull::Integer),
+        map(list_start, |()| Value::List(List)),
+        map(dictionary_start, |()| Value::Dictionary(Dictionary)),
+        map(byte_string, Value::ByteString),
+        map(integer, Value::Integer),
     ))(i)
 }
 
-fn maybe_val(i: &[u8]) -> Res<Option<ValuePull>> {
+fn maybe_val(i: &[u8]) -> Res<Option<Value>> {
     alt((value(None, end), map(val, Some)))(i)
 }
 
@@ -80,7 +80,7 @@ fn length(i: &[u8]) -> Res<u64> {
     })(i)
 }
 
-fn int(i: &[u8]) -> Res<i64> {
+fn integer(i: &[u8]) -> Res<i64> {
     delimited(char('i'), alt((zero, nonzero)), char('e'))(i)
 }
 
@@ -127,9 +127,9 @@ mod tests {
 
     #[test]
     fn valid_ints() {
-        assert_eq!(int(b"i0e"), Ok((&[][..], 0)));
-        assert_eq!(int(b"i115e"), Ok((&[][..], 115)));
-        assert_eq!(int(b"i-12e"), Ok((&[][..], -12)));
+        assert_eq!(integer(b"i0e"), Ok((&[][..], 0)));
+        assert_eq!(integer(b"i115e"), Ok((&[][..], 115)));
+        assert_eq!(integer(b"i-12e"), Ok((&[][..], -12)));
     }
 
     #[test]
@@ -140,16 +140,16 @@ mod tests {
     #[test]
     fn valid_list() {
         let i = b"l3:fooi42e3:bare";
-        let Ok((i, Some(ValuePull::List(it)))) = maybe_val(i) else {
+        let Ok((i, Some(Value::List(it)))) = maybe_val(i) else {
             panic!("Expected a list");
         };
-        let Ok((i, Some(ValuePull::ByteString(b"foo")))) = it.next_value(i) else {
+        let Ok((i, Some(Value::ByteString(b"foo")))) = it.next_value(i) else {
             panic!("Expected foo");
         };
-        let Ok((i, Some(ValuePull::Integer(42)))) = it.next_value(i) else {
+        let Ok((i, Some(Value::Integer(42)))) = it.next_value(i) else {
             panic!("Expected 42");
         };
-        let Ok((i, Some(ValuePull::ByteString(b"bar")))) = it.next_value(i) else {
+        let Ok((i, Some(Value::ByteString(b"bar")))) = it.next_value(i) else {
             panic!("Expected bar");
         };
         let Ok((b"", None)) = it.next_value(i) else {
@@ -160,17 +160,13 @@ mod tests {
     #[test]
     fn valid_dictionary() {
         let i = b"d3:fooi42e3:bari69ee";
-        let Ok((i, Some(ValuePull::Dictionary(it)))) = maybe_val(i) else {
+        let Ok((i, Some(Value::Dictionary(it)))) = maybe_val(i) else {
             panic!("Expected a dictionary")
         };
-        let Ok((i, Some((ValuePull::ByteString(b"foo"), ValuePull::Integer(42))))) =
-            it.next_pair(i)
-        else {
+        let Ok((i, Some((Value::ByteString(b"foo"), Value::Integer(42))))) = it.next_pair(i) else {
             panic!("Expected foo -> 42");
         };
-        let Ok((i, Some((ValuePull::ByteString(b"bar"), ValuePull::Integer(69))))) =
-            it.next_pair(i)
-        else {
+        let Ok((i, Some((Value::ByteString(b"bar"), Value::Integer(69))))) = it.next_pair(i) else {
             panic!("Expected bar -> 69");
         };
         let Ok((b"", None)) = it.next_pair(i) else {
