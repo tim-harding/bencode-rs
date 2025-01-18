@@ -2,7 +2,7 @@ use nom::{
     branch::alt,
     bytes::streaming::take,
     character::streaming::{char, digit0},
-    combinator::{map, opt, value, verify},
+    combinator::{eof, map, opt, value, verify},
     sequence::{delimited, pair},
     IResult, Needed,
 };
@@ -22,7 +22,7 @@ pub struct List;
 
 impl List {
     pub fn next_value(self, i: &[u8]) -> Res<Option<Value>> {
-        maybe_val(i)
+        val_or_end(i)
     }
 }
 
@@ -33,6 +33,10 @@ impl Dictionary {
     pub fn next_pair(self, i: &[u8]) -> Res<Option<(Value, Value)>> {
         alt((value(None, end), map(key_value_pair, Some)))(i)
     }
+}
+
+pub fn next_value(i: &[u8]) -> Res<Option<Value>> {
+    alt((map(val, Some), value(None, eof)))(i)
 }
 
 fn key_value_pair(i: &[u8]) -> Res<(Value, Value)> {
@@ -48,7 +52,7 @@ fn val(i: &[u8]) -> Res<Value> {
     ))(i)
 }
 
-fn maybe_val(i: &[u8]) -> Res<Option<Value>> {
+fn val_or_end(i: &[u8]) -> Res<Option<Value>> {
     alt((value(None, end), map(val, Some)))(i)
 }
 
@@ -139,7 +143,7 @@ mod tests {
     #[test]
     fn valid_list() {
         let i = b"l3:fooi42e3:bare";
-        let Ok((i, Some(Value::List(it)))) = maybe_val(i) else {
+        let Ok((i, Some(Value::List(it)))) = val_or_end(i) else {
             panic!("Expected a list");
         };
         let Ok((i, Some(Value::ByteString(b"foo")))) = it.next_value(i) else {
@@ -159,7 +163,7 @@ mod tests {
     #[test]
     fn valid_dictionary() {
         let i = b"d3:fooi42e3:bari69ee";
-        let Ok((i, Some(Value::Dictionary(it)))) = maybe_val(i) else {
+        let Ok((i, Some(Value::Dictionary(it)))) = val_or_end(i) else {
             panic!("Expected a dictionary")
         };
         let Ok((i, Some((Value::ByteString(b"foo"), Value::Integer(42))))) = it.next_pair(i) else {
