@@ -117,25 +117,25 @@ mod tests {
 
     #[test]
     fn complex_value() {
-        // assert_eq!(
-        //     parse_all(b"i1eli2el3:foo3:bared3:bazi3el7:listkeye5:valueee"),
-        //     Ok(vec![
-        //         Value::Integer(1),
-        //         Value::List(vec![
-        //             Value::Integer(2),
-        //             Value::List(vec![
-        //                 Value::ByteString(b"foo".to_vec()),
-        //                 Value::ByteString(b"bar".to_vec()),
-        //             ]),
-        //             Value::Dictionary(vec![
-        //                 (Value::ByteString(b"baz".to_vec()), Value::Integer(3)),
-        //                 (
-        //                     Value::List(vec![Value::ByteString(b"listkey".to_vec())]),
-        //                     Value::ByteString(b"value".to_vec())
-        //                 )
-        //             ])
-        //         ])
-        //     ])
-        // )
+        assert_eq!(
+            parse_all(b"i1eli2el3:foo3:bared3:bazi3el7:listkeye5:valueee"),
+            Ok(vec![
+                Value::Integer(1),
+                Value::List(vec![
+                    Value::Integer(2),
+                    Value::List(vec![
+                        Value::ByteString(b"foo".to_vec()),
+                        Value::ByteString(b"bar".to_vec()),
+                    ]),
+                    Value::Dictionary(vec![
+                        (Value::ByteString(b"baz".to_vec()), Value::Integer(3)),
+                        (
+                            Value::List(vec![Value::ByteString(b"listkey".to_vec())]),
+                            Value::ByteString(b"value".to_vec())
+                        )
+                    ])
+                ])
+            ])
+        )
     }
 }
