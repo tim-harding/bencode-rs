@@ -63,7 +63,10 @@ fn parse_one(
             let (i, dictionary) = parse_dictionary(i)?;
             (i, Some(Value::Dictionary(dictionary)))
         }
-        Err(_) => return Err(ParseError),
+        Err(e) => {
+            println!("{e:?}");
+            return Err(ParseError);
+        }
     })
 }
 
@@ -77,3 +80,16 @@ impl Display for ParseError {
 }
 
 impl Error for ParseError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_int() {
+        assert_eq!(
+            parse_all(b"i115ei-12e"),
+            Ok(vec![Value::Integer(115), Value::Integer(-12)])
+        );
+    }
+}

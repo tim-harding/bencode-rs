@@ -22,7 +22,7 @@ pub fn next_list_item(i: &[u8]) -> Res<Option<Value>> {
 }
 
 pub fn next_value(i: &[u8]) -> Res<Option<Value>> {
-    alt((map(val, Some), value(None, eof)))(i)
+    alt((value(None, eof), map(val, Some)))(i)
 }
 
 fn val(i: &[u8]) -> Res<Value> {
