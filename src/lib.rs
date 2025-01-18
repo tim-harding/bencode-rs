@@ -22,23 +22,34 @@ pub struct ListIter;
 
 impl ListIter {
     pub fn next_value(self, i: &[u8]) -> Res<Option<ValuePull>> {
-        val(i)
+        maybe_val(i)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DictionaryIter;
 
-fn val(i: &[u8]) -> Res<Option<ValuePull>> {
+impl DictionaryIter {
+    pub fn next_pair(self, i: &[u8]) -> Res<Option<(ValuePull, ValuePull)>> {
+        alt((value(None, end), map(key_value_pair, Some)))(i)
+    }
+}
+
+fn key_value_pair(i: &[u8]) -> Res<(ValuePull, ValuePull)> {
+    pair(val, val)(i)
+}
+
+fn val(i: &[u8]) -> Res<ValuePull> {
     alt((
-        value(None, end),
-        map(list_start, |()| Some(ValuePull::List(ListIter))),
-        map(dictionary_start, |()| {
-            Some(ValuePull::Dictionary(DictionaryIter))
-        }),
-        map(byte_string, |s| Some(ValuePull::ByteString(s))),
-        map(int, |i| Some(ValuePull::Integer(i))),
+        map(list_start, |()| ValuePull::List(ListIter)),
+        map(dictionary_start, |()| ValuePull::Dictionary(DictionaryIter)),
+        map(byte_string, ValuePull::ByteString),
+        map(int, ValuePull::Integer),
     ))(i)
+}
+
+fn maybe_val(i: &[u8]) -> Res<Option<ValuePull>> {
+    alt((value(None, end), map(val, Some)))(i)
 }
 
 fn end(i: &[u8]) -> Res<()> {
@@ -91,8 +102,8 @@ fn zero(i: &[u8]) -> Res<i64> {
     value(0, char('0'))(i)
 }
 
-fn is_nonzero(&b: &u8) -> bool {
-    b >= b'1' && b <= b'9'
+fn is_nonzero(b: &u8) -> bool {
+    (b'1'..=b'9').contains(b)
 }
 
 fn byte(i: &[u8]) -> Res<u8> {
@@ -129,8 +140,8 @@ mod tests {
     #[test]
     fn valid_list() {
         let i = b"l3:fooi42e3:bare";
-        let Ok((i, Some(ValuePull::List(it)))) = val(i) else {
-            panic!("Not a list");
+        let Ok((i, Some(ValuePull::List(it)))) = maybe_val(i) else {
+            panic!("Expected a list");
         };
         let Ok((i, Some(ValuePull::ByteString(b"foo")))) = it.next_value(i) else {
             panic!("Expected foo");
@@ -143,6 +154,27 @@ mod tests {
         };
         let Ok((b"", None)) = it.next_value(i) else {
             panic!("Expected end of list");
+        };
+    }
+
+    #[test]
+    fn valid_dictionary() {
+        let i = b"d3:fooi42e3:bari69ee";
+        let Ok((i, Some(ValuePull::Dictionary(it)))) = maybe_val(i) else {
+            panic!("Expected a dictionary")
+        };
+        let Ok((i, Some((ValuePull::ByteString(b"foo"), ValuePull::Integer(42))))) =
+            it.next_pair(i)
+        else {
+            panic!("Expected foo -> 42");
+        };
+        let Ok((i, Some((ValuePull::ByteString(b"bar"), ValuePull::Integer(69))))) =
+            it.next_pair(i)
+        else {
+            panic!("Expected bar -> 69");
+        };
+        let Ok((b"", None)) = it.next_pair(i) else {
+            panic!("Expected end of dictionary")
         };
     }
 }
