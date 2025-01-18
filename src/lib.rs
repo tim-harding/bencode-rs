@@ -3,6 +3,7 @@ mod parsing;
 use parsing::{next_list_item, next_value, Res, Value as ParseValue};
 use std::{error::Error, fmt::Display};
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Value {
     Integer(i64),
     ByteString(Vec<u8>),
