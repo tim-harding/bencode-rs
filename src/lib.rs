@@ -9,6 +9,54 @@ use nom::{
 
 type Res<'a, O> = IResult<&'a [u8], O>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ValuePull<'a> {
+    Integer(i64),
+    ByteString(&'a [u8]),
+    List(ListIter),
+    Dictionary(DictionaryIter),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ListIter;
+
+impl ListIter {
+    pub fn next_value(self, i: &[u8]) -> Res<Option<ValuePull>> {
+        val(i)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DictionaryIter;
+
+fn val(i: &[u8]) -> Res<Option<ValuePull>> {
+    alt((
+        value(None, end),
+        map(list_start, |()| Some(ValuePull::List(ListIter))),
+        map(dictionary_start, |()| {
+            Some(ValuePull::Dictionary(DictionaryIter))
+        }),
+        map(byte_string, |s| Some(ValuePull::ByteString(s))),
+        map(int, |i| Some(ValuePull::Integer(i))),
+    ))(i)
+}
+
+fn end(i: &[u8]) -> Res<()> {
+    single_char(i, 'e')
+}
+
+fn dictionary_start(i: &[u8]) -> Res<()> {
+    single_char(i, 'd')
+}
+
+fn list_start(i: &[u8]) -> Res<()> {
+    single_char(i, 'l')
+}
+
+fn single_char(i: &[u8], c: char) -> Res<()> {
+    map(char(c), |_| ())(i)
+}
+
 fn byte_string(i: &[u8]) -> Res<&[u8]> {
     let (rest, length) = length(i)?;
     map(pair(char(':'), take(length)), |(_, s)| s)(rest)
@@ -76,5 +124,25 @@ mod tests {
     #[test]
     fn valid_byte_string() {
         assert_eq!(byte_string(b"6:foobar"), Ok((&[][..], &b"foobar"[..])));
+    }
+
+    #[test]
+    fn valid_list() {
+        let i = b"l3:fooi42e3:bare";
+        let Ok((i, Some(ValuePull::List(it)))) = val(i) else {
+            panic!("Not a list");
+        };
+        let Ok((i, Some(ValuePull::ByteString(b"foo")))) = it.next_value(i) else {
+            panic!("Expected foo");
+        };
+        let Ok((i, Some(ValuePull::Integer(42)))) = it.next_value(i) else {
+            panic!("Expected 42");
+        };
+        let Ok((i, Some(ValuePull::ByteString(b"bar")))) = it.next_value(i) else {
+            panic!("Expected bar");
+        };
+        let Ok((b"", None)) = it.next_value(i) else {
+            panic!("Expected end of list");
+        };
     }
 }
