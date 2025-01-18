@@ -37,8 +37,9 @@ fn parse_dictionary(mut bytes: &[u8]) -> Result<(&[u8], Vec<(Value, Value)>), Pa
     let mut out = vec![];
     loop {
         let (i, k) = parse_one(bytes, next_nested)?;
+        bytes = i;
         let Some(k) = k else { break };
-        let (i, v) = parse_one(i, next_nested)?;
+        let (i, v) = parse_one(bytes, next_nested)?;
         bytes = i;
         let Some(v) = v else { return Err(ParseError) };
         out.push((k, v));
@@ -100,6 +101,17 @@ mod tests {
                 Value::Integer(115),
                 Value::Integer(-12)
             ])])
+        )
+    }
+
+    #[test]
+    fn valid_dictionary() {
+        assert_eq!(
+            parse_all(b"di1ei2ee"),
+            Ok(vec![Value::Dictionary(vec![(
+                Value::Integer(1),
+                Value::Integer(2),
+            )])])
         )
     }
 
